@@ -1,77 +1,81 @@
 # Maestro
 
-**Zero-gas agent orchestrator for [Tempo](https://tempo.xyz) blockchain.**
+Python orchestrator for running gasless agent swarms on [Tempo](https://tempo.xyz). Sub-agents get scoped session keys with spending limits — they can transact without holding any gas tokens. The master pays all fees and can revoke access at any time.
 
-A Master Agent delegates economic tasks to Sub-Agents that hold zero gas, have scoped budgets via session keys, execute in parallel, settle atomically, and leave on-chain audit trails.
+Built on Tempo's 0x76 transaction type ([`pytempo`](https://pypi.org/project/pytempo/), [`pympp`](https://pypi.org/project/pympp/)).
 
-## The Idea
+## Live on Testnet
 
-Think of Maestro like **corporate credit cards for AI agents**.
-
-A company (master agent) issues cards (session keys) to employees (sub-agents). Each card has a spending limit, an expiry date, and vendor restrictions. The company pays the processing fees — employees never touch the company bank account. The company can cancel any card instantly. Every purchase has a receipt.
-
-Now replace "company" with an orchestrator, "employees" with autonomous AI agents, "cards" with Tempo session keys, "processing fees" with blockchain gas, and "receipts" with TIP-20 memo hashes. That's Maestro.
-
-## What It Does
+These are real transactions on Tempo Moderato (chain 42431):
 
 ```
-Master Agent (holds gas + master key)
-    │
-    ├── authorize session keys (atomic batch)
-    │
-    ├── Researcher Agent (nonce_key=1, $10 budget, zero gas)
-    │   └── pays for market data → TIP-20 memo: {task, confidence}
-    │
-    ├── Analyst Agent (nonce_key=2, $5 budget, zero gas)
-    │   └── pays for scoring → TIP-20 memo: {task, model, score}
-    │
-    ├── Settler Agent (nonce_key=3, $50 budget, zero gas)
-    │   └── executes final settlement → TIP-20 memo: {trade_id}
-    │
-    └── revoke all session keys (atomic batch)
+Simple pathUSD transfer:
+  https://explore.moderato.tempo.xyz/tx/0xa431528b5cb7f229ad4a56640ef010c3475ef2f895d1095354a93ed14d6d4c07
+
+Atomic batch — 3 transfers in 1 tx (all-or-nothing):
+  https://explore.moderato.tempo.xyz/tx/0xe568ce0568252b9267d811f71f4717d54b1028e428473b1bb7d5926afaaace21
+
+Transfer with SHA-256 memo (on-chain provenance):
+  https://explore.moderato.tempo.xyz/tx/0x120aba7bcd52f3cfc60af1fa22e0f7cea8ba74e677e97ac1088bcccf21651281
 ```
 
-All three agents execute **in parallel** (different nonce lanes), with **zero gas** (fee sponsorship), **scoped budgets** (session keys + TokenLimit), and **on-chain provenance** (TIP-20 memos).
+## How It Works
 
-## Why Tempo (and Why Not x402/Ethereum/Solana)
+A `Maestro` instance manages one master key and N sub-agents. Each agent gets:
+- A **session key** via `AccountKeychain` — time-limited, with per-token spending caps
+- Its own **nonce lane** — agents transact in parallel without blocking each other
+- **Fee sponsorship** — the master signs the gas envelope, agents hold zero native tokens
 
-On Ethereum or Solana, achieving what Maestro does requires deploying 5+ separate smart contracts and off-chain infrastructure:
+All of this is native to Tempo's 0x76 transaction type. No smart contracts to deploy.
 
-| Capability | Tempo (native) | Ethereum | x402 |
-|-----------|---------------|----------|------|
-| Scoped agent budgets | `AccountKeychain.authorize_key()` | Custom ERC-4337 smart wallet | Not supported |
-| Zero-gas agents | `awaiting_fee_payer=True` | Separate paymaster contract | Agents need ETH/SOL |
-| Parallel execution | `nonce_key` per agent | Nonce blocking (sequential) | 1 tx per request |
-| Atomic multi-payment | `calls=(Call, Call, ...)` | Multicall contract needed | Not supported |
-| On-chain scheduling | `valid_after` / `valid_before` | Keeper network (Chainlink) | Off-chain cron |
-| Payment provenance | `TIP20.transfer_with_memo()` | No native memo field | Basic |
+```python
+from maestro import Maestro, AgentConfig
 
-On Tempo, all six are parameters on a single `TempoTransaction`. No contracts to deploy, no infrastructure to run.
+m = Maestro(master_key="0x...")
 
-## Use Cases
+m.register_agent(AgentConfig(
+    agent_id="researcher",
+    key_id="0xAgentAddress",
+    nonce_key=1,
+    budget_tokens={"0x20C0...0000": 10_000_000},  # $10 pathUSD
+))
 
-### Autonomous Research Swarm
-Deploy 10 analyst agents, each with a $5/day session key. They pay for market data APIs via [MPP](https://mpp.dev/overview), run analysis in parallel, and the settler agent executes trades — all fee-sponsored, all with on-chain audit trails.
+# authorize all session keys in one atomic batch
+auth_tx = m.build_authorize_tx()
 
-### AI Workforce Batch Payroll
-Batch monthly payments to 50 contractors in a single atomic transaction. Each payment has a TIP-20 memo linking to the invoice hash. Scheduled via `valid_after` for the 1st of the month. The company sponsors gas — recipients don't need native tokens.
+# build a task — agent pays recipient with a memo hash
+tx, task_id = m.build_agent_task(
+    "researcher", "0x20C0...0000",
+    payments=[{"to": "0xRecipient", "amount": 1_000_000,
+               "memo_extra": {"source": "coingecko", "confidence": 0.92}}],
+)
 
-### Scoped Agent Sandboxing
-Testing a new AI agent? Give it a session key with a $2 `TokenLimit` and 1-hour expiry. It can experiment freely within bounds. When the hour's up or the budget's spent, the key auto-expires. Goes rogue? Revoke instantly.
+# done — revoke everything
+revoke_tx = m.build_revoke_tx()
+```
 
-### Multi-Agent Supply Chain
-Agent A sources data ($0.01), Agent B processes it ($0.05), Agent C delivers the result ($0.10). All three run in parallel nonce lanes. The batch either fully settles or fully reverts — atomic guarantees without custom escrow contracts.
+Transactions come back as `TempoTransaction` objects ready to sign and submit. The `TxSubmitter` handles signing, RPC submission, and receipt polling:
 
-## Tempo Primitives Used
+```python
+from maestro.submitter import TxSubmitter
 
-| Primitive | How Maestro Uses It |
-|-----------|-------------------|
-| **Session Keys** | `AccountKeychain.authorize_key()` with per-token spending limits and expiry |
-| **Fee Sponsorship** | `awaiting_fee_payer=True` — sub-agents hold zero native tokens |
-| **Call Batching** | `TempoTransaction(calls=(...))` — atomic multi-payment in one tx |
-| **Parallel Execution** | Different `nonce_key` per agent — no mempool blocking |
-| **Scheduling** | `valid_after` / `valid_before` — native on-chain time locks |
-| **TIP-20 Memos** | `transfer_with_memo()` — SHA-256 provenance hash in every payment |
+sub = TxSubmitter(master_account)
+receipt = await sub.sign_and_send(tx)
+print(receipt.explorer_url)
+```
+
+## What Tempo Gives You (That Other Chains Don't)
+
+The reason this works without deploying contracts is that Tempo bakes these into the transaction format:
+
+- `AccountKeychain.authorize_key(key_id, expiry, limits)` — scoped session keys with per-token caps
+- `awaiting_fee_payer` — sub-agent builds tx, master pays gas
+- `calls=(Call, Call, ...)` — multiple operations in one atomic tx
+- `nonce_key` — parallel execution lanes per agent
+- `valid_after` / `valid_before` — on-chain scheduling without keepers
+- `TIP20.transfer_with_memo(memo)` — 32-byte provenance hash on every payment
+
+On Ethereum you'd need ERC-4337 + a paymaster + a multicall contract + Chainlink keepers to get the same thing. On x402 most of these aren't possible at all.
 
 ## Install
 
@@ -79,95 +83,44 @@ Agent A sources data ($0.01), Agent B processes it ($0.05), Agent C delivers the
 pip install maestro-tempo
 ```
 
-## Quick Start
+Or from source:
 
-```python
-from maestro import Maestro, AgentConfig
-
-maestro = Maestro(master_key="0x...")
-
-maestro.register_agent(AgentConfig(
-    agent_id="researcher",
-    key_id="0x...",      # agent's session key address
-    nonce_key=1,         # parallel execution lane
-    budget_tokens={"0x20C0...0000": 10_000_000},  # $10 pathUSD
-))
-
-# Authorize session keys (atomic batch)
-auth_tx = maestro.build_authorize_tx()
-
-# Build parallel agent tasks with memo provenance
-tx, task_id = maestro.build_agent_task(
-    agent_id="researcher",
-    token_address="0x20C0...0000",  # pathUSD
-    payments=[{
-        "to": "0xRecipient",
-        "amount": 1_000_000,
-        "memo_extra": {"source": "coingecko", "confidence": 0.92},
-    }],
-)
-
-# Schedule a future payment
-sched_tx, sched_id = maestro.build_scheduled_task(
-    agent_id="researcher",
-    token_address="0x20C0...0000",
-    payments=[{"to": "0xRecipient", "amount": 5_000_000}],
-    valid_after=1775700000,  # unix timestamp
-)
-
-# Revoke when done
-revoke_tx = maestro.build_revoke_tx()
+```bash
+git clone https://github.com/mcevoyinit/maestro.git
+cd maestro
+pip install -e ".[dev]"
+pytest tests/ -v  # 69 tests
 ```
 
 ## CLI Demo
 
 ```bash
-maestro  # runs the full lifecycle demo
+python -m maestro.cli
 ```
 
-Shows: register 3 agents → authorize keys (atomic) → parallel tasks (3 nonce lanes) → scheduled task → revoke keys.
+Walks through the full lifecycle: register 3 agents with different budgets → authorize session keys (atomic batch) → parallel tasks across 3 nonce lanes → scheduled task with `valid_after` → revoke keys.
 
-## Testnet
-
-Maestro targets the Tempo Moderato testnet:
-
-| Detail | Value |
-|--------|-------|
-| Chain ID | `42431` |
-| RPC | `https://rpc.moderato.tempo.xyz` |
-| Explorer | `https://explore.moderato.tempo.xyz` |
-| Faucet | `cast rpc tempo_fundAddress <YOUR_ADDRESS> --rpc-url https://rpc.moderato.tempo.xyz` |
-| Stablecoins | pathUSD, AlphaUSD, BetaUSD, ThetaUSD (1M each from faucet) |
-
-## Contract Addresses (built into pytempo)
-
-| Contract | Address |
-|----------|---------|
-| AccountKeychain | `0xaAAAaaAA00000000000000000000000000000000` |
-| pathUSD (TIP-20) | `0x20C0000000000000000000000000000000000000` |
-| AlphaUSD | `0x20C0000000000000000000000000000000000001` |
-| Nonce Manager | `0x4e4F4E4345000000000000000000000000000000` |
-| Fee Manager | `0xfeEC000000000000000000000000000000000000` |
-| StablecoinDEX | `0xDEc0000000000000000000000000000000000000` |
-
-## Part of the Tempo Python Portfolio
-
-| Repo | Role | Tests |
-|------|------|-------|
-| [**Parley**](https://github.com/mcevoyinit/parley) | Negotiate — tiered pricing for MPP endpoints | 60 |
-| [**Agent Treaty**](https://github.com/mcevoyinit/tempo-agent-treaty) | Agree — multi-field OTC block trading | 89 |
-| **Maestro** | Execute — zero-gas orchestrated settlement | 65 |
-
-**Negotiate → Agree → Execute.** The complete agent economic lifecycle on Tempo.
-
-## Tests
+## Testnet Setup
 
 ```bash
-pip install -e ".[dev]"
-pytest tests/ -v  # 65 tests, ~0.6s
+# fund your wallet (gives 1M of each testnet stablecoin)
+curl -X POST https://rpc.moderato.tempo.xyz \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tempo_fundAddress","params":["YOUR_ADDRESS"],"id":1}'
 ```
 
-All tests use real `pytempo` and `pympp` objects — no mocks.
+| | |
+|---|---|
+| Chain ID | 42431 |
+| RPC | `https://rpc.moderato.tempo.xyz` |
+| Explorer | `https://explore.moderato.tempo.xyz` |
+| pathUSD | `0x20C0000000000000000000000000000000000000` |
+| AccountKeychain | `0xaAAAaaAA00000000000000000000000000000000` |
+
+## Related
+
+- [Parley](https://github.com/mcevoyinit/parley) — tiered pricing for MPP endpoints
+- [Agent Treaty](https://github.com/mcevoyinit/tempo-agent-treaty) — multi-field OTC negotiation between agents
 
 ## License
 
