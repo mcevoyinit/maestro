@@ -69,7 +69,7 @@ def print_tx_info(label: str, tx) -> None:
 
 def main() -> None:
     print_header("MAESTRO — Zero-Gas Agent Orchestrator")
-    print("  Tempo chain: testnet (42429)")
+    print("  Tempo chain: Moderato testnet (42431)")
     print("  Protocol:    0x76 TempoTransaction")
     print("  Primitives:  session keys + fee sponsorship + batch + schedule")
 

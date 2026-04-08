@@ -49,7 +49,7 @@ class TestSponsoredTx:
         assert isinstance(tx, TempoTransaction)
         assert tx.awaiting_fee_payer is True
         assert tx.nonce_key == 1
-        assert tx.chain_id == 42429
+        assert tx.chain_id == 42431
         assert len(tx.calls) == 1
 
     def test_nonce_key_matches_agent(self):

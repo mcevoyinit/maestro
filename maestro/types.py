@@ -58,8 +58,8 @@ class TaskResult:
 class MaestroConfig:
     """Top-level orchestrator configuration."""
 
-    chain_id: int = 42429  # Tempo testnet
-    rpc_url: str = "https://rpc.testnet.tempo.xyz"
+    chain_id: int = 42431  # Tempo Moderato testnet
+    rpc_url: str = "https://rpc.moderato.tempo.xyz"
     gas_limit: int = 500_000
     max_fee_per_gas: int = 1_000_000_000  # 1 gwei
     max_priority_fee_per_gas: int = 1_000_000_000
