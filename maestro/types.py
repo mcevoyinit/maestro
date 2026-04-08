@@ -61,6 +61,6 @@ class MaestroConfig:
     chain_id: int = 42431  # Tempo Moderato testnet
     rpc_url: str = "https://rpc.moderato.tempo.xyz"
     gas_limit: int = 500_000
-    max_fee_per_gas: int = 1_000_000_000  # 1 gwei
-    max_priority_fee_per_gas: int = 1_000_000_000
+    max_fee_per_gas: int = 25_000_000_000  # 25 gwei (Moderato min base fee is 20 gwei)
+    max_priority_fee_per_gas: int = 1_000_000_000  # 1 gwei tip
     signature_type: int = 2  # secp256k1
