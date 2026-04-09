@@ -23,12 +23,17 @@ from pytempo.contracts.addresses import PATH_USD
 
 def create_mpp_service(
     recipient_key: str,
-    chain_id: int = 42431,
+    chain_id: int = 4217,
     rpc_url: str = "https://rpc.moderato.tempo.xyz",
     secret_key: str = "maestro-demo-secret",
     price: str = "10000",  # $0.01 pathUSD in base units (6 decimals)
 ) -> Starlette:
     """Create a Starlette app with MPP-gated endpoints."""
+    if secret_key == "maestro-demo-secret":
+        import logging
+        logging.getLogger("maestro").warning(
+            "Using demo secret_key 'maestro-demo-secret' — do NOT use in production"
+        )
 
     recipient = TempoAccount.from_key(recipient_key)
 

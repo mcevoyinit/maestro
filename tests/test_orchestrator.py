@@ -135,6 +135,16 @@ class TestAgentTasks:
         assert len(tx.calls) == 4
 
 
+class TestEmptyPayments:
+
+    def test_empty_payments_rejected(self):
+        m = Maestro("0x" + "ab" * 32)
+        key = TempoAccount.from_key("0x" + "01" * 32)
+        m.register_agent(AgentConfig(agent_id="a", key_id=key.address, nonce_key=1, budget_tokens={"0x" + "20" * 20: 1000000}))
+        with pytest.raises(ValueError, match="payments must not be empty"):
+            m.build_agent_task("a", "0x" + "20" * 20, [])
+
+
 class TestParallelTasks:
 
     def test_build_parallel_3_agents(self):

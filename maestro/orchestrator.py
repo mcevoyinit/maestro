@@ -75,6 +75,8 @@ class Maestro:
 
         Returns (transaction, task_id).
         """
+        if not payments:
+            raise ValueError("payments must not be empty")
         agent = self.keychain.get_agent(agent_id)
         task_id = task_id or f"task-{uuid.uuid4().hex[:8]}"
         tx = self.executor.build_agent_task_tx(

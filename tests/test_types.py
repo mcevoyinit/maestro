@@ -96,7 +96,7 @@ class TestMaestroConfig:
 
     def test_defaults(self):
         config = MaestroConfig()
-        assert config.chain_id == 42431
+        assert config.chain_id == 4217
         assert config.gas_limit == 500_000
         assert config.signature_type == 2
 
