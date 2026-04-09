@@ -1,10 +1,19 @@
 # Maestro
 
+> *mae·stro* — a master conductor; one who directs a complex performance.
+
 Python orchestrator for running gasless agent swarms on [Tempo](https://tempo.xyz). Sub-agents get scoped session keys with spending limits — they can transact without holding any gas tokens. The master pays all fees and can revoke access at any time.
 
 Built on Tempo's 0x76 transaction type ([`pytempo`](https://pypi.org/project/pytempo/), [`pympp`](https://pypi.org/project/pympp/)).
 
-## Live on Testnet
+## Live on mainnet
+
+```
+Atomic batch — 3 payments in 1 tx, each with provenance hash (mainnet):
+  https://explore.tempo.xyz/tx/0x40a47a91d59527e09b9ba9fb9c4e7459df5720808d1b503ca1f705f974996478
+```
+
+## Also on testnet
 
 These are real transactions on Tempo Moderato (chain 42431):
 
