@@ -65,8 +65,8 @@ class TaskResult:
 class MaestroConfig:
     """Top-level orchestrator configuration."""
 
-    chain_id: int = 42431  # Tempo Moderato testnet
-    rpc_url: str = "https://rpc.moderato.tempo.xyz"
+    chain_id: int = 4217  # Tempo mainnet (use 42431 for Moderato testnet)
+    rpc_url: str = "https://rpc.tempo.xyz"
     gas_limit: int = 500_000
     max_fee_per_gas: int = 25_000_000_000  # 25 gwei (Moderato min base fee is 20 gwei)
     max_priority_fee_per_gas: int = 1_000_000_000  # 1 gwei tip
