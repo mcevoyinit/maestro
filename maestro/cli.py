@@ -147,8 +147,8 @@ def main() -> None:
     parallel_txs = maestro.build_parallel_tasks(tasks, TESTNET_USDC)
 
     for tx, task_id in parallel_txs:
-        agent_id = [t for t in tasks if t["agent_id"] in task_id or True][0]["agent_id"]
         # find agent from tx nonce_key
+        agent_id = "unknown"
         for a in agents:
             if a.nonce_key == tx.nonce_key:
                 agent_id = a.agent_id

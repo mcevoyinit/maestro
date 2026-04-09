@@ -28,6 +28,22 @@ class TxSubmitter:
     ):
         self.master = master_account
         self.config = config or MaestroConfig()
+        self.explorer_base = self._derive_explorer_base(self.config.rpc_url)
+
+    @staticmethod
+    def _derive_explorer_base(rpc_url: str) -> str:
+        """Derive the block explorer base URL from the RPC URL.
+
+        Maps rpc.{network}.tempo.xyz -> explore.{network}.tempo.xyz
+        Falls back to mainnet explorer for unrecognized URLs.
+        """
+        from urllib.parse import urlparse
+        parsed = urlparse(rpc_url)
+        host = parsed.hostname or ""
+        if host.startswith("rpc."):
+            explorer_host = "explore." + host[4:]
+            return f"{parsed.scheme or 'https'}://{explorer_host}"
+        return "https://explore.tempo.xyz"
 
     async def sign_and_send(
         self,
@@ -57,6 +73,9 @@ class TxSubmitter:
                 valid_after=tx.valid_after,
                 valid_before=tx.valid_before,
                 fee_token=tx.fee_token,
+                access_list=tx.access_list,
+                tempo_authorization_list=tx.tempo_authorization_list,
+                key_authorization=tx.key_authorization,
             )
 
         # Sign
@@ -81,9 +100,21 @@ class TxSubmitter:
         return int(result, 16)
 
     async def get_nonce(self, nonce_key: int = 0) -> int:
-        """Get the current nonce for a nonce_key."""
-        # For Tempo, we query the nonce manager contract
-        # Simple approach: use eth_getTransactionCount for nonce_key=0
+        """Get the current nonce for a nonce_key.
+
+        LIMITATION: This method only returns correct nonces for nonce_key=0.
+        It queries eth_getTransactionCount which corresponds to the default
+        nonce lane. The Tempo nonce manager contract would need to be queried
+        per nonce_key for parallel execution, but the standard RPC does not
+        expose per-key nonces. Users doing parallel execution with
+        nonce_key > 0 must manage nonces themselves.
+        """
+        if nonce_key != 0:
+            logger.warning(
+                "get_nonce() only supports nonce_key=0; got nonce_key=%d. "
+                "Returned nonce may be incorrect for parallel lanes.",
+                nonce_key,
+            )
         result = await self._rpc_call(
             "eth_getTransactionCount",
             [self.master.address, "latest"],
@@ -128,11 +159,13 @@ class TxSubmitter:
                     block_number=int(result.get("blockNumber", "0x0"), 16),
                     gas_used=int(result.get("gasUsed", "0x0"), 16),
                     raw=result,
+                    explorer_base=self.explorer_base,
                 )
             await asyncio.sleep(delay)
 
         return TxReceipt(
             tx_hash=tx_hash, success=False, error="Receipt timeout",
+            explorer_base=self.explorer_base,
         )
 
     async def _rpc_call(
@@ -172,6 +205,7 @@ class TxReceipt:
         gas_used: int = 0,
         error: str = "",
         raw: dict[str, Any] | None = None,
+        explorer_base: str = "https://explore.moderato.tempo.xyz",
     ):
         self.tx_hash = tx_hash
         self.success = success
@@ -179,6 +213,7 @@ class TxReceipt:
         self.gas_used = gas_used
         self.error = error
         self.raw = raw or {}
+        self.explorer_base = explorer_base
 
     def __repr__(self) -> str:
         status = "SUCCESS" if self.success else "FAILED"
@@ -186,7 +221,7 @@ class TxReceipt:
 
     @property
     def explorer_url(self) -> str:
-        return f"https://explore.moderato.tempo.xyz/tx/{self.tx_hash}"
+        return f"{self.explorer_base}/tx/{self.tx_hash}"
 
 
 class RpcError(Exception):
