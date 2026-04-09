@@ -50,6 +50,7 @@ class TxSubmitter:
         tx: TempoTransaction,
         *,
         fee_sponsor: bool = False,
+        nonce: int | None = None,
     ) -> TxReceipt:
         """Sign a transaction and submit to RPC.
 
@@ -57,10 +58,19 @@ class TxSubmitter:
             tx: The built TempoTransaction.
             fee_sponsor: If True, sign as fee payer (for sponsored txs).
                          If False, sign as sender.
+            nonce: Explicit nonce for parallel execution. If provided, use it
+                   directly instead of auto-fetching. Callers doing parallel
+                   execution with nonce_key > 0 must manage nonces themselves.
         """
-        # Auto-set nonce if not already set
-        if tx.nonce == 0:
+        # Use explicit nonce if provided, otherwise auto-fetch
+        if nonce is not None:
+            current_nonce = nonce
+        elif tx.nonce == 0:
             current_nonce = await self.get_nonce(tx.nonce_key)
+        else:
+            current_nonce = None
+
+        if current_nonce is not None:
             tx = TempoTransaction(
                 chain_id=tx.chain_id,
                 calls=tx.calls,

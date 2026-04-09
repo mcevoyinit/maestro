@@ -3,42 +3,61 @@
 import json
 import time
 
+import pytest
+
 from maestro.types import AgentConfig, TaskResult, MaestroConfig
+
+
+# Valid 42-char Ethereum address for tests
+VALID_ADDR = "0x" + "ab" * 20
 
 
 class TestAgentConfig:
 
     def test_create_with_defaults(self):
-        agent = AgentConfig(agent_id="test", key_id="0xabc", nonce_key=1)
+        agent = AgentConfig(agent_id="test", key_id=VALID_ADDR, nonce_key=1)
         assert agent.agent_id == "test"
         assert agent.nonce_key == 1
         assert agent.budget_tokens == {}
 
     def test_create_with_budget(self):
         agent = AgentConfig(
-            agent_id="a1", key_id="0x01", nonce_key=2,
+            agent_id="a1", key_id=VALID_ADDR, nonce_key=2,
             budget_tokens={"0xUSDC": 10_000_000},
         )
         assert agent.budget_tokens["0xUSDC"] == 10_000_000
 
     def test_effective_expiry_default(self):
-        agent = AgentConfig(agent_id="a1", key_id="0x01", nonce_key=1)
+        agent = AgentConfig(agent_id="a1", key_id=VALID_ADDR, nonce_key=1)
         expiry = agent.effective_expiry()
         assert expiry > int(time.time())
         assert expiry <= int(time.time()) + 3601
 
     def test_effective_expiry_explicit(self):
         future = int(time.time()) + 7200
-        agent = AgentConfig(agent_id="a1", key_id="0x01", nonce_key=1, expiry=future)
+        agent = AgentConfig(agent_id="a1", key_id=VALID_ADDR, nonce_key=1, expiry=future)
         assert agent.effective_expiry() == future
 
     def test_frozen(self):
-        agent = AgentConfig(agent_id="a1", key_id="0x01", nonce_key=1)
+        agent = AgentConfig(agent_id="a1", key_id=VALID_ADDR, nonce_key=1)
         try:
             agent.agent_id = "changed"
             assert False, "Should be frozen"
         except AttributeError:
             pass
+
+    def test_key_id_too_short_raises(self):
+        with pytest.raises(ValueError, match="42 chars"):
+            AgentConfig(agent_id="bad", key_id="0xabc", nonce_key=1)
+
+    def test_key_id_too_long_raises(self):
+        with pytest.raises(ValueError, match="42 chars"):
+            AgentConfig(agent_id="bad", key_id="0x" + "aa" * 32, nonce_key=1)
+
+    def test_key_id_empty_allowed(self):
+        """Empty key_id skips validation (falsy check)."""
+        agent = AgentConfig(agent_id="empty", key_id="", nonce_key=1)
+        assert agent.key_id == ""
 
 
 class TestTaskResult:

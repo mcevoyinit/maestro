@@ -19,6 +19,13 @@ class AgentConfig:
     expiry: int = 0  # unix timestamp (0 = 1 hour from creation)
     description: str = ""
 
+    def __post_init__(self):
+        if self.key_id and len(self.key_id) != 42:
+            raise ValueError(
+                f"key_id must be an Ethereum address (42 chars), got {len(self.key_id)} chars. "
+                f"Use TempoAccount.from_key(private_key).address to derive an address."
+            )
+
     def effective_expiry(self) -> int:
         if self.expiry > 0:
             return self.expiry
