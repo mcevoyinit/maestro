@@ -84,7 +84,7 @@ The reason this works without deploying contracts is that Tempo bakes these into
 - `valid_after` / `valid_before` — on-chain scheduling without keepers
 - `TIP20.transfer_with_memo(memo)` — 32-byte provenance hash on every payment
 
-On Ethereum you'd need ERC-4337 + a paymaster + a multicall contract + Chainlink keepers to get the same thing. On x402 most of these aren't possible at all.
+ERC-4337 on Ethereum provides the same primitives (session keys, paymasters, batching) through deployed contract infrastructure. Tempo exposes them as fields on the transaction format itself — fewer moving parts and cheaper to operate, but conceptually the same model. The practical differences are cost (sub-cent vs dollars), stablecoin-native gas, and not having to deploy or trust any additional contracts.
 
 ## Install
 
