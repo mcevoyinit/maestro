@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pytempo import AccountKeychain, Call
+from pytempo import AccountKeychain, Call, TokenLimit
+from pytempo.contracts.account_keychain import KeyRestrictions
 
 from .types import AgentConfig, MaestroConfig
 
@@ -30,13 +31,18 @@ class KeychainManager:
 
     def build_authorize_call(self, agent: AgentConfig) -> Call:
         """Build a Call that authorizes a session key for this agent."""
-        limits = [(token, amount) for token, amount in agent.budget_tokens.items()]
+        token_limits = tuple(
+            TokenLimit(token=token, limit=amount)
+            for token, amount in agent.budget_tokens.items()
+        ) or None
+        restrictions = KeyRestrictions(
+            expiry=agent.effective_expiry(),
+            limits=token_limits,
+        )
         return AccountKeychain.authorize_key(
             key_id=agent.key_id,
             signature_type=self.config.signature_type,
-            expiry=agent.effective_expiry(),
-            enforce_limits=bool(limits),
-            limits=limits if limits else None,
+            restrictions=restrictions,
         )
 
     def build_revoke_call(self, agent: AgentConfig) -> Call:

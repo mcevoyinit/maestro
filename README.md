@@ -98,7 +98,8 @@ Or from source:
 git clone https://github.com/mcevoyinit/maestro.git
 cd maestro
 pip install -e ".[dev]"
-pytest tests/ -v  # 69 tests
+pytest tests/ --ignore=tests/test_testnet_live.py  # 91 offline tests
+pytest tests/test_testnet_live.py  # 4 testnet tests (needs funded wallet)
 ```
 
 ## CLI Demo
