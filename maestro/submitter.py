@@ -62,9 +62,15 @@ class TxSubmitter:
                    directly instead of auto-fetching. Callers doing parallel
                    execution with nonce_key > 0 must manage nonces themselves.
         """
-        # Use explicit nonce if provided, otherwise auto-fetch
+        # Use explicit nonce if provided, otherwise auto-fetch.
+        # Auto-fetch is lane-0 only; see get_nonce() docstring.
         if nonce is not None:
             current_nonce = nonce
+        elif tx.nonce == 0 and tx.nonce_key != 0:
+            raise ValueError(
+                f"parallel lane (nonce_key={tx.nonce_key}) requires an explicit "
+                f"nonce; get_nonce() only returns correct values for lane 0"
+            )
         elif tx.nonce == 0:
             current_nonce = await self.get_nonce(tx.nonce_key)
         else:
