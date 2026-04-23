@@ -7,6 +7,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from pytempo.keychain import SignatureType
+
 
 @dataclass(frozen=True)
 class AgentConfig:
@@ -70,4 +72,4 @@ class MaestroConfig:
     gas_limit: int = 500_000
     max_fee_per_gas: int = 25_000_000_000  # 25 gwei (Moderato min base fee is 20 gwei)
     max_priority_fee_per_gas: int = 1_000_000_000  # 1 gwei tip
-    signature_type: int = 2  # secp256k1
+    signature_type: int = SignatureType.SECP256K1

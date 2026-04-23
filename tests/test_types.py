@@ -5,6 +5,8 @@ import time
 
 import pytest
 
+from pytempo.keychain import SignatureType
+
 from maestro.types import AgentConfig, TaskResult, MaestroConfig
 
 
@@ -98,7 +100,15 @@ class TestMaestroConfig:
         config = MaestroConfig()
         assert config.chain_id == 4217
         assert config.gas_limit == 500_000
-        assert config.signature_type == 2
+        assert config.signature_type == SignatureType.SECP256K1
+
+    def test_signature_type_is_secp256k1_not_webauthn(self):
+        # Guards against a prior regression: default was 2 (WebAuthn) with a
+        # "secp256k1" comment, which silently installed access keys under the
+        # wrong signature slot.
+        assert MaestroConfig().signature_type == 0
+        assert SignatureType.SECP256K1 == 0
+        assert SignatureType.WEBAUTHN == 2
 
     def test_custom_chain(self):
         config = MaestroConfig(chain_id=1)
