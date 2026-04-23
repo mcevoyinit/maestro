@@ -12,8 +12,8 @@ from .types import AgentConfig, MaestroConfig
 from .orchestrator import Maestro
 
 
-# Testnet USDC address (placeholder — replace with actual TIP-20 on testnet)
-TESTNET_USDC = "0x" + "00" * 20
+# Moderato testnet pathUSD (matches README; swap for another TIP-20 if needed).
+TESTNET_USDC = "0x20C0000000000000000000000000000000000000"
 
 
 def demo_agents() -> list[AgentConfig]:
