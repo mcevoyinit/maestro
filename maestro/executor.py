@@ -40,6 +40,8 @@ class SponsoredExecutor:
 
         The agent's nonce_key ensures parallel execution.
         awaiting_fee_payer=True means the master will sign the fee envelope.
+        sender_address is the agent's key — required so the fee-payer hash
+        can bind to the sender identity.
         """
         return TempoTransaction(
             chain_id=self.config.chain_id,
@@ -49,6 +51,7 @@ class SponsoredExecutor:
             max_fee_per_gas=self.config.max_fee_per_gas,
             max_priority_fee_per_gas=self.config.max_priority_fee_per_gas,
             awaiting_fee_payer=True,
+            sender_address=agent.key_id,
             valid_after=valid_after,
             valid_before=valid_before,
         )
